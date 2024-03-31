@@ -1,3 +1,3 @@
-To run: 
-\ng++ -std=c++11 *.cpp -o mypython
-\n./mypython <file.py>
+To run:
+<br/>g++ -std=c++11 *.cpp -o mypython 
+<br/>./mypython <file.py>
