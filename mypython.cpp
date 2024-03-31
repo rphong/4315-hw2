@@ -3,9 +3,7 @@
 
 #include <iostream>
 
-#include "Interpreter/Python.hpp"
-#include "Interpreter/Expr.hpp"
-#include "Interpreter/Token.hpp"
+#include "Python.hpp"
 
 int main(int argc, char* argv[]) {
   if (argc != 2) {
