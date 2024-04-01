@@ -27,7 +27,9 @@ void Interpreter::visit(Unary& expr) {
   }
 }
 
-void Interpreter::visit(Variable& expr) { Return(m_environment.get(expr.name)); }
+void Interpreter::visit(Variable& expr) {
+  Return(m_environment.get(expr.name));
+}
 
 void Interpreter::visit(Grouping& expr) { Return(evaluate(expr.expression)); }
 
@@ -91,25 +93,23 @@ void Interpreter::interpret(std::vector<Stmt*> statements) {
     for (Stmt* stmt : statements) {
       execute(stmt);
     }
-  } catch(std::runtime_error e) {
+  } catch (std::runtime_error e) {
     return;
   }
 }
 
-void Interpreter::visit(Expression& stmt) {
-  evaluate(stmt.expression);
-}
+void Interpreter::visit(Expression& stmt) { evaluate(stmt.expression); }
 
 void Interpreter::visit(If& stmt) {
-  if(isTruthy(evaluate(stmt.condition))) {
+  if (isTruthy(evaluate(stmt.condition))) {
     execute(stmt.thenBranch);
-  } else if(stmt.elseBranch != nullptr) {
+  } else if (stmt.elseBranch != nullptr) {
     execute(stmt.elseBranch);
   }
 }
 
 void Interpreter::visit(Print& stmt) {
-  for(Expr* expr: stmt.expressions) {
+  for (Expr* expr : stmt.expressions) {
     std::cout << evaluate(expr) << " ";
   }
   std::cout << std::endl;
@@ -117,19 +117,21 @@ void Interpreter::visit(Print& stmt) {
 
 void Interpreter::visit(Var& stmt) {
   std::string val = "";
-  if(stmt.initializer != nullptr) {
+  if (stmt.initializer != nullptr) {
     val = evaluate(stmt.initializer);
   }
   m_environment.assign(stmt.name, val);
 }
 
-void Interpreter::visit(Block& stmt) {
-   executeBlock(stmt.statements);
-}
+void Interpreter::visit(Block& stmt) { executeBlock(stmt.statements); }
 
 void Interpreter::executeBlock(std::vector<Stmt*> stmts) {
-  for(Stmt* stmt: stmts) {
+  for (Stmt* stmt : stmts) {
     execute(stmt);
+  }
+
+  for (Stmt* stmt : stmts) {
+    delete stmt;
   }
 }
 
