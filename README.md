@@ -19,3 +19,30 @@ This is where the code finally gets evaluated. This interpreter works by making 
 While not completely necessary, the visitor pattern allows for a more modular design by decoupling the method that takes in the statement from the method that handles the statement depending on its type. 
 Another note is that since we're evaluating a syntax tree, we need some of the accepting methods to have a return type, namely expressions. The implementation for adding a return type can be found in VisitorReturnVal.hpp
 along with the guide that was used. 
+
+Extra:
+Recursion is supported - test program shown below
+
+```py
+#Classical recursive factorial
+def f(n):
+    if n < 2: 
+        return 1
+    else:
+        return n * f(n-1)
+
+
+x = f(6)
+y = f(2)
+z = f(1)
+print("x factorial =",x)
+print("y factorial =",y)
+print("z factorial =",z)
+```
+
+Output
+```
+x factorial = 720 
+y factorial = 2
+z factorial = 1
+```
