@@ -171,9 +171,15 @@ void Interpreter::executeBlock(std::vector<Stmt*> stmts,
                                const Environment& env) {
   Environment prev = m_environment;
   m_environment = env;
-  for (Stmt* stmt : stmts) {
-    execute(stmt);
+  try {
+    for (Stmt* stmt : stmts) {
+      execute(stmt);
+    }
+  } catch(ReturnObj* e) {
+    m_environment = prev;
+    throw e;
   }
+
   m_environment = prev;
   for (Stmt* stmt : stmts) {
     delete stmt;
