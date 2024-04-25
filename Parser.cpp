@@ -4,17 +4,20 @@ using namespace PyInterpreter;
 
 std::vector<Stmt*> Parser::parse() {
   std::vector<Stmt*> statements;
-  while (peek().type == Token::TokenType::INDENTATION && !isAtEnd()) advance();
-
+  clearEmptyLines();
   while (!isAtEnd()) {
     statements.push_back(declaration());
-    while (peek().type == Token::TokenType::INDENTATION && !isAtEnd()) advance();
+    clearEmptyLines();
   }
   return statements;
 }
 
 Stmt* Parser::declaration() {
+  indentation();
   try {
+    if (match({Token::TokenType::DEF})) {
+      return function("function");
+    }
     if (peek().type == Token::TokenType::IDENTIFIER) {
       return varDeclaration();
     }
@@ -28,30 +31,69 @@ Stmt* Parser::declaration() {
 
 Stmt* Parser::statement() {
   if (match({Token::TokenType::IF})) return ifStatement();
+  if (match({Token::TokenType::RETURN})) return returnStatement();
   if (match({Token::TokenType::PRINT})) return printStatement();
   return expressionStatement();
+}
+
+Stmt* Parser::expressionStatement() {
+  Expr* expr = expression();
+  return new Expression(expr);
+}
+
+Stmt* Parser::function(const std::string& kind) {
+  Token name =
+      consume(Token::TokenType::IDENTIFIER, "Expect " + kind + " name.");
+  consume(Token::TokenType::LEFT_PAREN, "Expect '(' after " + kind + " name.");
+  std::vector<Token> parameters;
+  if (!check(Token::TokenType::RIGHT_PAREN)) {
+    do {
+      if (parameters.size() >= 255) {
+        throw std::runtime_error("Can't have more than 255 parameters");
+      }
+      parameters.push_back(
+          consume(Token::TokenType::IDENTIFIER, "Expect parameter name."));
+    } while (match({Token::TokenType::COMMA}));
+  }
+  consume(Token::TokenType::RIGHT_PAREN, "Expect ')' after parameters.");
+
+  consume(Token::TokenType::COLON, "Expect ':' before " + kind + " body.");
+  m_indentation = peek().lexeme.size();
+
+  std::vector<Stmt*> body = block(m_indentation);
+  return new Function(name, parameters, body);
 }
 
 Stmt* Parser::ifStatement() {
   Expr* condition = expression();
   consume(Token::TokenType::COLON, "Expect colon after condition");
-  indentation();
+  clearEmptyLines();
+  int localIndentation = m_indentation;
+  m_indentation = peek().lexeme.size();
 
-  Stmt* thenBranch = new Block(block(m_indentation));
+  Stmt* thenBranch = new IfElseBlock(block(m_indentation));
   Stmt* elseBranch = nullptr;
-  if (match({Token::TokenType::ELSE})) {
-    consume(Token::TokenType::COLON, "Expect colon after else");
+  clearEmptyLines();
+  if(next().type == Token::TokenType::ELSE && peek().lexeme.size() == localIndentation) {
     indentation();
-    elseBranch = new Block(block(m_indentation));
+    consume(Token::TokenType::ELSE, "Expect else");
+    consume(Token::TokenType::COLON, "Expect colon after else");
+    clearEmptyLines();
+    m_indentation = peek().lexeme.size();
+    elseBranch = new IfElseBlock(block(m_indentation));
   }
 
   return new If(condition, thenBranch, elseBranch);
 }
 
-Stmt* Parser::expressionStatement() {
-  Expr* expr = expression();
-  indentation();
-  return new Expression(expr);
+Stmt* Parser::returnStatement() {
+  Token keyword = previous();
+  Expr* value = nullptr;
+  if (!check(Token::TokenType::INDENTATION)) {
+    value = expression();
+  }
+
+  return new ReturnStmt(keyword, value);
 }
 
 Stmt* Parser::printStatement() {
@@ -64,7 +106,6 @@ Stmt* Parser::printStatement() {
     expressions.push_back(expression());
   }
   consume(Token::TokenType::RIGHT_PAREN, "Expect ) at end of argument list");
-  indentation();
   return new Print(expressions);
 }
 
@@ -75,7 +116,6 @@ Stmt* Parser::varDeclaration() {
   if (match({Token::TokenType::EQUAL})) {
     initializer = expression();
   }
-  indentation();
   return new Var(name, initializer);
 }
 
@@ -84,6 +124,8 @@ std::vector<Stmt*> Parser::block(int indentation) {
 
   while (m_indentation >= indentation && !isAtEnd()) {
     statements.push_back(declaration());
+    clearEmptyLines();
+    m_indentation = peek().lexeme.size();
   }
 
   return statements;
@@ -93,6 +135,12 @@ void Parser::indentation() {
   if (isAtEnd()) return;
   Token ind = consume(Token::TokenType::INDENTATION, "Expect indentation.");
   m_indentation = ind.lexeme.size();
+}
+
+void Parser::clearEmptyLines() {
+  while ((next().type == Token::TokenType::INDENTATION))
+    advance();
+  if(next().type == Token::TokenType::ENDOFFILE) advance();
 }
 
 Expr* Parser::expression() { return assignment(); }
@@ -195,7 +243,21 @@ Expr* Parser::unary() {
     return new Unary(op, right);
   }
 
-  return primary();
+  return call();
+}
+
+Expr* Parser::call() {
+  Expr* expr = primary();
+
+  while (true) {
+    if (match({Token::TokenType::LEFT_PAREN})) {
+      expr = finishCall(expr);
+    } else {
+      break;
+    }
+  }
+
+  return expr;
 }
 
 Expr* Parser::primary() {
@@ -221,6 +283,20 @@ Expr* Parser::primary() {
   }
 
   throw std::runtime_error("Expect expression.");
+}
+
+Expr* Parser::finishCall(Expr* callee) {
+  std::vector<Expr*> arguments;
+  if (!check(Token::TokenType::RIGHT_PAREN)) {
+    do {
+      arguments.push_back(expression());
+    } while (match({Token::TokenType::COMMA}));
+  }
+
+  Token paren =
+      consume(Token::TokenType::RIGHT_PAREN, "Expect ')' after arguments.");
+
+  return new Call(callee, paren, arguments);
 }
 
 bool Parser::match(std::vector<Token::TokenType> types) {

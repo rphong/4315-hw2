@@ -3,6 +3,13 @@
 using namespace PyInterpreter;
 
 Environment Interpreter::m_environment = Environment();
+
+void Interpreter::visit(Assign& expr) {
+  std::string val = evaluate(expr.value);
+  m_environment.assign(expr.name, val);
+  Return(val);
+}
+
 void Interpreter::visit(Literal& expr) { Return(expr.value); }
 
 void Interpreter::visit(Logical& expr) {
@@ -40,19 +47,31 @@ void Interpreter::visit(Binary& expr) {
   switch (expr.op.type) {
     case Token::TokenType::GREATER:
       checkNumberOrStringOperands(expr.op, left, right);
-      Return(left > right ? "true" : "false");
+      if (isNumber(left))
+        Return(std::stoi(left) > std::stoi(right) ? "true" : "false");
+      else
+        Return(left > right ? "true" : "false");
       break;
     case Token::TokenType::GREATER_EQUAL:
       checkNumberOrStringOperands(expr.op, left, right);
-      Return(left >= right ? "true" : "false");
+      if (isNumber(left))
+        Return(std::stoi(left) >= std::stoi(right) ? "true" : "false");
+      else
+        Return(left >= right ? "true" : "false");
       break;
     case Token::TokenType::LESS:
       checkNumberOrStringOperands(expr.op, left, right);
-      Return(left < right ? "true" : "false");
+      if (isNumber(left))
+        Return(std::stoi(left) < std::stoi(right) ? "true" : "false");
+      else
+        Return(left < right ? "true" : "false");
       break;
     case Token::TokenType::LESS_EQUAL:
       checkNumberOrStringOperands(expr.op, left, right);
-      Return(left <= right ? "true" : "false");
+      if (isNumber(left))
+        Return(std::stoi(left) <= std::stoi(right) ? "true" : "false");
+      else
+        Return(left <= right ? "true" : "false");
       break;
     case Token::TokenType::MINUS:
       checkNumberOperands(expr.op, left, right);
@@ -82,10 +101,15 @@ void Interpreter::visit(Binary& expr) {
   }
 }
 
-void Interpreter::visit(Assign& expr) {
-  std::string val = evaluate(expr.value);
-  m_environment.assign(expr.name, val);
-  Return(val);
+void Interpreter::visit(Call& expr) {
+  const std::string callee = evaluate(expr.callee);
+
+  std::vector<std::string> arguments;
+  for (Expr* arg : expr.arguments) {
+    arguments.push_back(evaluate(arg));
+  }
+
+  Return(m_environment.getFunction(callee)->call(this, arguments));
 }
 
 void Interpreter::interpret(std::vector<Stmt*> statements) {
@@ -98,7 +122,20 @@ void Interpreter::interpret(std::vector<Stmt*> statements) {
   }
 }
 
+void Interpreter::visit(Block& stmt) {
+  executeBlock(stmt.statements, PyInterpreter::Environment(m_environment));
+}
+
+void Interpreter::visit(IfElseBlock& stmt) {
+  executeIfElseBlock(stmt.statements);
+}
+
 void Interpreter::visit(Expression& stmt) { evaluate(stmt.expression); }
+
+void Interpreter::visit(Function& stmt) {
+  PyFunction* function = new PyFunction(stmt);
+  m_environment.assignFunction(stmt.name, function);
+}
 
 void Interpreter::visit(If& stmt) {
   if (isTruthy(evaluate(stmt.condition))) {
@@ -106,6 +143,13 @@ void Interpreter::visit(If& stmt) {
   } else if (stmt.elseBranch != nullptr) {
     execute(stmt.elseBranch);
   }
+}
+
+void Interpreter::visit(ReturnStmt& stmt) {
+  std::string value = "";
+  if (stmt.value != nullptr) value = evaluate(stmt.value);
+
+  throw new ReturnObj(value);
 }
 
 void Interpreter::visit(Print& stmt) {
@@ -123,9 +167,20 @@ void Interpreter::visit(Var& stmt) {
   m_environment.assign(stmt.name, val);
 }
 
-void Interpreter::visit(Block& stmt) { executeBlock(stmt.statements); }
+void Interpreter::executeBlock(std::vector<Stmt*> stmts,
+                               const Environment& env) {
+  Environment prev = m_environment;
+  m_environment = env;
+  for (Stmt* stmt : stmts) {
+    execute(stmt);
+  }
+  m_environment = prev;
+  for (Stmt* stmt : stmts) {
+    delete stmt;
+  }
+}
 
-void Interpreter::executeBlock(std::vector<Stmt*> stmts) {
+void Interpreter::executeIfElseBlock(std::vector<Stmt*> stmts) {
   for (Stmt* stmt : stmts) {
     execute(stmt);
   }
@@ -158,7 +213,7 @@ void Interpreter::checkNumberOrStringOperands(Token op, std::string left,
 
 bool Interpreter::isNumber(std::string str) const {
   for (const auto& c : str) {
-    if (!isdigit(c)) return false;
+    if (!isdigit(c) && c != '-') return false;
   }
   return true;
 }
