@@ -120,6 +120,9 @@ void Interpreter::interpret(std::vector<Stmt*> statements) {
   } catch (std::runtime_error e) {
     return;
   }
+  for(Stmt* stmt: statements) {
+    delete stmt;
+  }
 }
 
 void Interpreter::visit(Block& stmt) {
@@ -179,20 +182,12 @@ void Interpreter::executeBlock(std::vector<Stmt*> stmts,
     m_environment = prev;
     throw e;
   }
-
   m_environment = prev;
-  for (Stmt* stmt : stmts) {
-    delete stmt;
-  }
 }
 
 void Interpreter::executeIfElseBlock(std::vector<Stmt*> stmts) {
   for (Stmt* stmt : stmts) {
     execute(stmt);
-  }
-
-  for (Stmt* stmt : stmts) {
-    delete stmt;
   }
 }
 
